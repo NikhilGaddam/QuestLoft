@@ -13,8 +13,8 @@ from psycopg2 import sql
 DB_HOST = "c-questloft-custer.e4a4to25j6hszu.postgres.cosmos.azure.com"
 DB_PORT = "5432"
 DB_NAME = "questloft"
-DB_USER = "citus"  # Change this to your PostgreSQL username
-DB_PASSWORD = "Questloft3115"  # Change this to your PostgreSQL password
+DB_USER = "citus" 
+DB_PASSWORD = "Questloft3115" 
 
 # Create connection to PostgreSQL
 def get_db_connection():
@@ -100,6 +100,8 @@ def chat_voice():
 
     return jsonify({"reply": answer, "voiceToText": converted_text}), 200
 
+
+# API to list all documents
 @app.route('/documents', methods=['GET'])
 def list_all_documents():
     try:
@@ -119,6 +121,8 @@ def list_all_documents():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
+
+# API to fetch a document based on the document ID
 @app.route('/documents/<int:document_id>', methods=['GET'])
 def fetch_document(document_id):
     try:
@@ -152,7 +156,7 @@ def fetch_document(document_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
+# API to upload a document
 @app.route('/documents/upload', methods=['POST'])
 def insert_a_document():
     if 'file' not in request.files:
@@ -186,6 +190,57 @@ def insert_a_document():
         return jsonify({'message': 'Document uploaded successfully', 'document_id': document_id}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+#API to update a document
+@app.route('/documents/update/<int:document_id>', methods=['PUT'])
+def update_a_document(document_id):
+    data = request.get_json()
+    enabled = data.get('enabled')
+
+    if enabled is None:
+        return jsonify({'error': 'Missing "enabled" status'}), 400
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        query = "UPDATE documents SET enabled = %s WHERE id = %s RETURNING id"
+        cursor.execute(query, (enabled, document_id))
+        
+        if cursor.rowcount > 0:
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return jsonify({'message': 'Document status updated successfully'}), 200
+        else:
+            cursor.close()
+            connection.close()
+            return jsonify({'error': 'Document not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# API to delete a document
+@app.route('/documents/delete/<int:document_id>', methods=['DELETE'])
+def remove_a_document(document_id):
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        query = "DELETE FROM documents WHERE id = %s RETURNING id"
+        cursor.execute(query, (document_id,))
+        
+        if cursor.rowcount > 0:
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return jsonify({'message': 'Document deleted successfully'}), 200
+        else:
+            cursor.close()
+            connection.close()
+            return jsonify({'error': 'Document not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 
 if __name__ == '__main__':
