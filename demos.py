@@ -7,6 +7,7 @@ from dotenv import load_dotenv, find_dotenv
 
 load_dotenv(find_dotenv())
 
+
 llm = ChatOpenAI(api_key=os.environ.get("OPENAI_API_KEY"),
                  model=os.environ.get("OPENAI_MODEL_NAME"))
 

@@ -5,7 +5,9 @@ from langchain_community.vectorstores import FAISS
 from uuid import uuid4
 
 from langchain_core.documents import Document
+from dotenv import load_dotenv, find_dotenv
 
+load_dotenv(find_dotenv())
 
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 

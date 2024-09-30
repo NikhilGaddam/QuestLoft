@@ -3,7 +3,9 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import MessagesPlaceholder
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
+from dotenv import load_dotenv, find_dotenv
 
+load_dotenv(find_dotenv())
 chat_histories = {}
 
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
