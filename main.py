@@ -45,7 +45,7 @@ CORS(app, resources={r"/chat/*": {
 },
 r"/documents/*": {
     "origins": "*",
-    "methods": ["GET", "POST", "OPTIONS"],
+    "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
     "allow_headers": ["Content-Type", "Authorization"]
 }
 })
