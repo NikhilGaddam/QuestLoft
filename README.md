@@ -1,32 +1,69 @@
-Prerequisites
+# Questloft Backend
+
+Questloft is a comprehensive learning platform that combines interactive tools, AI-powered conversational interfaces, and dynamic content management. It aims to create an engaging environment for students, support teachers with better management tools, and help students develop critical STEM skills required for the future workforce.
+
+## Prerequisites
+
 Before you begin, ensure you have met the following requirements:
 
-Python 3.x installed on your machine.
-pip (Python package manager) is also installed.
-Installation
-Clone the repository:
+- **Python 3.x**: Ensure Python 3.x is installed on your machine.
+- **pip**: Make sure pip (Python package manager) is also installed.
 
+## Installation
+
+Follow these steps to set up the Questloft backend on your local machine.
+
+### Clone the Repository
+
+First, clone the repository from GitLab:
+
+```bash
 git clone git@gitlab.com:wallfacers1/questloft.git
-cd backend
-Create a virtual environment:
+cd questloft/backend
+```
 
-It is recommended to use a virtual environment to manage dependencies.
-
+### Create a Virtual Environment
+It is recommended to use a virtual environment to manage dependencies. Run the following command to create one:
+bash
+```bash
 python -m venv venv
-Activate the virtual environment:
+```
+### Activate the Virtual Environment
+Activate the virtual environment using the command appropriate for your operating system.
 
 On Windows:
-
+```bash
 venv\Scripts\activate
+```
+
 On macOS/Linux:
-
+```bash
 source venv/bin/activate
-Install the required packages:
+```
 
+### Install Required Packages
+Install the necessary packages using pip:
+```bash
 pip install -r requirements.txt
-Usage
+```
+
+
+### Run the application
 To run the application, execute the following command:
 
+```bash
 python main.py
+```
+
+
 After starting the server, you can access the application by navigating to http://127.0.0.1:5000 in your web browser.
+
+
+Contributing
+To contribute to Questloft, please follow these guidelines:
+Fork the repository.
+Create a new branch (git checkout -b feat/<feature name> or fix/<fix name>).
+Push to the branch
+Open a pull request.
+
 
