@@ -4,6 +4,8 @@ from langchain_core.prompts import MessagesPlaceholder
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from dotenv import load_dotenv, find_dotenv
+import azure.cognitiveservices.speech as speechsdk
+import base64
 
 load_dotenv(find_dotenv())
 chat_histories = {}
@@ -39,6 +41,19 @@ def speech_to_text(client, audio_file):
     )
     return transcription.text
 
+def text_to_speech(speech_synthesizer, file_name, text):
+    result = speech_synthesizer.speak_text_async(text).get()
+    result_audio_data = result.audio_data
+    wav_base64 = base64.b64encode(result_audio_data).decode('utf-8')
+
+    if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+        print("Speech synthesized for text [{}], and the audio was saved to [{}]".format(text, file_name))
+    elif result.reason == speechsdk.ResultReason.Canceled:
+        cancellation_details = result.cancellation_details
+        print("Speech synthesis canceled: {}".format(cancellation_details.reason))
+        if cancellation_details.reason == speechsdk.CancellationReason.Error:
+            print("Error details: {}".format(cancellation_details.error_details))
+    return wav_base64
 
 def get_close_vector_text(question):
     

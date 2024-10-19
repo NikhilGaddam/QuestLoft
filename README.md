@@ -49,6 +49,27 @@ pip install -r requirements.txt
 
 
 ### Run the application
+Before running the application, make sure you have the environment variables defined in .env file
+```
+OPENAI_API_KEY=""
+
+OPENAI_MODEL_NAME=""
+
+SPEECH_KEY=""
+
+SERVICE_REGION=""
+
+PORT=""
+
+DB_HOST = ""
+DB_PORT = ""
+DB_NAME = ""
+DB_USER = "" 
+DB_PASSWORD = "" 
+
+```
+
+
 To run the application, execute the following command:
 
 ```bash
@@ -59,11 +80,12 @@ python main.py
 After starting the server, you can access the application by navigating to http://127.0.0.1:5000 in your web browser.
 
 
-Contributing
-To contribute to Questloft, please follow these guidelines:
-Fork the repository.
-Create a new branch (git checkout -b feat/<feature name> or fix/<fix name>).
-Push to the branch
-Open a pull request.
+### Contributing
 
+To contribute to Questloft, please follow these guidelines:
+
+- Fork the repository.
+- Create a new branch: `git checkout -b feat/<feature-name>` or `fix/<fix-name>`.
+- Push to the branch.
+- Open a pull request.
 
