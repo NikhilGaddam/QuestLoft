@@ -30,3 +30,17 @@ To run the application, execute the following command:
 python main.py
 After starting the server, you can access the application by navigating to http://127.0.0.1:5000 in your web browser.
 
+
+
+-------
+PSQL schema
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  auth0_user_id VARCHAR(255),
+  user_role VARCHAR(50),
+  is_approved BOOLEAN DEFAULT FALSE
+);
+
+
+
+
