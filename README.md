@@ -89,3 +89,17 @@ To contribute to Questloft, please follow these guidelines:
 - Push to the branch.
 - Open a pull request.
 
+
+
+-------
+PSQL schema
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  auth0_user_id VARCHAR(255),
+  user_role VARCHAR(50),
+  is_approved BOOLEAN DEFAULT FALSE
+);
+
+
+
+
