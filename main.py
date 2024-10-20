@@ -9,24 +9,18 @@ import uuid
 import azure.cognitiveservices.speech as speechsdk
 import psycopg2
 from psycopg2 import sql
+from config import get_db_connection
+from authentication.auth_routes import auth_bp
 
+
+# # Database connection settings
+# DB_HOST = "c-questloft-custer.e4a4to25j6hszu.postgres.cosmos.azure.com"
+# DB_PORT = "5432"
+# DB_NAME = "questloft"
+# DB_USER = "citus" 
+# DB_PASSWORD = "Questloft3115" 
 # Database connection settings
-DB_HOST = "c-questloft-custer.e4a4to25j6hszu.postgres.cosmos.azure.com"
-DB_PORT = "5432"
-DB_NAME = "questloft"
-DB_USER = "citus" 
-DB_PASSWORD = "Questloft3115" 
 
-# Create connection to PostgreSQL
-def get_db_connection():
-    connection = psycopg2.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD
-    )
-    return connection
 
 from helpers import speech_to_text, get_answer_from_question, text_to_speech
 
@@ -50,22 +44,24 @@ r"/documents/*": {
 }
 })
 
+app.register_blueprint(auth_bp)
+
 client = OpenAI()
 llm = ChatOpenAI(api_key=os.environ.get("OPENAI_API_KEY"),
                  model=os.environ.get("OPENAI_MODEL_NAME"))
 
 
-UPLOAD_FOLDER = './uploads'
-# Just for text to speech
-speech_key = os.environ.get("SPEECH_KEY")
-service_region = os.environ.get("SERVICE_REGION")
+# UPLOAD_FOLDER = './uploads'
+# # Just for text to speech
+# speech_key = os.environ.get("SPEECH_KEY")
+# service_region = os.environ.get("SERVICE_REGION")
 
-speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
-speech_config.speech_synthesis_voice_name = "en-US-AvaMultilingualNeural"
+# speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
+# speech_config.speech_synthesis_voice_name = "en-US-AvaMultilingualNeural"
 
-file_name = f"{UPLOAD_FOLDER}/output.wav"
-file_config = speechsdk.audio.AudioOutputConfig(filename=file_name)
-speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=file_config)
+# file_name = f"{UPLOAD_FOLDER}/output.wav"
+# file_config = speechsdk.audio.AudioOutputConfig(filename=file_name)
+# speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=file_config)
 
 @app.route('/', methods=['GET'])
 def get_status():
@@ -91,57 +87,57 @@ def chat_text():
 
 
 
-@app.route('/chat/voice', methods=['POST'])
-def chat_voice():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
+# @app.route('/chat/voice', methods=['POST'])
+# def chat_voice():
+#     if 'file' not in request.files:
+#         return jsonify({'error': 'No file uploaded'}), 400
     
-    audio_file = request.files['file']
-    chat_id = request.form.get('chat_id')
-    if not chat_id:
-        chat_id = str(uuid.uuid4())
-    answer = "Sorry, I could not get that, please try again"
+#     audio_file = request.files['file']
+#     chat_id = request.form.get('chat_id')
+#     if not chat_id:
+#         chat_id = str(uuid.uuid4())
+#     answer = "Sorry, I could not get that, please try again"
 
-    try:        
-        converted_text = speech_to_text(client=client, audio_file = ('audio.wav', audio_file, 'audio/wav'))
-        if converted_text and len(converted_text) > 5:
-            answer = get_answer_from_question(llm, converted_text, chat_id)
-        # Use this to test the frontend, to have a sample response without using whisper
-        # answer = "Take this sample message to make the UI"
-        # converted_text = "hello there"
-    except Exception as e:
-        print(e)
-        return jsonify({'error': str(e)}), 500
+#     try:        
+#         converted_text = speech_to_text(client=client, audio_file = ('audio.wav', audio_file, 'audio/wav'))
+#         if converted_text and len(converted_text) > 5:
+#             answer = get_answer_from_question(llm, converted_text, chat_id)
+#         # Use this to test the frontend, to have a sample response without using whisper
+#         # answer = "Take this sample message to make the UI"
+#         # converted_text = "hello there"
+#     except Exception as e:
+#         print(e)
+#         return jsonify({'error': str(e)}), 500
 
-    return jsonify({"reply": answer, "voiceToText": converted_text}), 200
+#     return jsonify({"reply": answer, "voiceToText": converted_text}), 200
 
-@app.route('/chat/fullvoice', methods=['POST'])
-def chat_voice_to_voice():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
+# @app.route('/chat/fullvoice', methods=['POST'])
+# def chat_voice_to_voice():
+#     if 'file' not in request.files:
+#         return jsonify({'error': 'No file uploaded'}), 400
     
-    audio_file = request.files['file']
-    chat_id = request.form.get('chat_id') or str(uuid.uuid4())
-    chat_id_exists = bool(request.form.get('chat_id'))
-    answer = "Sorry, I could not get that, please try again"
-    wav_base64 = ""
-    try:
-        converted_text = speech_to_text(client=client, audio_file = ('audio.wav', audio_file, 'audio/wav'))
-        # The api will only respond if the users says a text that is longer than 5 characters
-        if converted_text and len(converted_text) > 5:
-            answer, chat_history = get_answer_from_question(llm, converted_text, chat_id)
-            wav_base64 = text_to_speech(speech_synthesizer, file_name, answer)
-        # wav_base64 = test_test_to_speech_fe(test_file_name)
-        # answer = "Take this sample message to make the UI"
-        # converted_text = "hello there"
-    except Exception as e:
-        print(e)
-        return jsonify({'error': str(e)}), 500
-    response = {"reply": answer, "voiceToText": converted_text, "wav_base64": wav_base64, "chat_history": chat_history}
+#     audio_file = request.files['file']
+#     chat_id = request.form.get('chat_id') or str(uuid.uuid4())
+#     chat_id_exists = bool(request.form.get('chat_id'))
+#     answer = "Sorry, I could not get that, please try again"
+#     wav_base64 = ""
+#     try:
+#         converted_text = speech_to_text(client=client, audio_file = ('audio.wav', audio_file, 'audio/wav'))
+#         # The api will only respond if the users says a text that is longer than 5 characters
+#         if converted_text and len(converted_text) > 5:
+#             answer, chat_history = get_answer_from_question(llm, converted_text, chat_id)
+#             wav_base64 = text_to_speech(speech_synthesizer, file_name, answer)
+#         # wav_base64 = test_test_to_speech_fe(test_file_name)
+#         # answer = "Take this sample message to make the UI"
+#         # converted_text = "hello there"
+#     except Exception as e:
+#         print(e)
+#         return jsonify({'error': str(e)}), 500
+#     response = {"reply": answer, "voiceToText": converted_text, "wav_base64": wav_base64, "chat_history": chat_history}
     
-    if not chat_id_exists:
-        response["chat_id"] = chat_id
-    return jsonify(response), 200
+#     if not chat_id_exists:
+#         response["chat_id"] = chat_id
+#     return jsonify(response), 200
 
 
 # API to list all documents
