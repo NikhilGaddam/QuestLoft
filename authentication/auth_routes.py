@@ -10,21 +10,38 @@ auth_bp = Blueprint('auth', __name__)
 def request_admin_approval():
     data = request.json
     auth0_user_id = data.get('auth0_user_id')
-    user_role = data.get('user_role')  # Either "Teacher" or "Parent"
+    user_role = data.get('user_role')  # Either "Teacher", "Parent", or "Student"
 
-    if not auth0_user_id or user_role not in ['Teacher', 'Parent']:
+    if not auth0_user_id or user_role not in ['Teacher', 'Parent', 'Student']:
         return jsonify({'error': 'Invalid data'}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
 
     try:
+        # Check if the user with the provided auth0_user_id already exists
+        cur.execute("SELECT auth0_user_id FROM users WHERE auth0_user_id = %s", (auth0_user_id,))
+        user_exists = cur.fetchone()
+
+        if user_exists:
+            return jsonify({'error': 'User Already Exists'}), 409  # Conflict status code
+
+        # If the user role is "Student", they are automatically approved
+        if user_role == 'Student':
+            is_approved = True
+            approval_status = "Approved"
+        else:
+            is_approved = False
+            approval_status = "Pending Approval"
+
+        # Insert the user details into the users table
         cur.execute("""
-            INSERT INTO users (auth0_user_id, user_role, is_approved)
-            VALUES (%s, %s, %s)
-        """, (auth0_user_id, user_role, False))
+            INSERT INTO users (auth0_user_id, user_role, is_approved, user_created_time)
+            VALUES (%s, %s, %s, NOW())
+        """, (auth0_user_id, user_role, is_approved))
         conn.commit()
-        return jsonify({'message': 'Approval request submitted'}), 200
+
+        return jsonify({'approval': approval_status}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
