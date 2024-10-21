@@ -100,6 +100,19 @@ CREATE TABLE users (
   is_approved BOOLEAN DEFAULT FALSE
 );
 
+Delete the Volume and Reinitialize the Database
+If you're in a development environment and want Docker to rerun init.sql (which will reinitialize the database):
+
+Remove the PostgreSQL Volume: By deleting the Docker volume where the PostgreSQL data is stored, you will force Docker to rerun the initialization scripts:
+
+
+docker-compose down
+docker volume rm questloft-backend_postgres_data
+
+
+Start the Docker Containers: When you restart the containers, Docker will rerun the init.sql script and create the database and schema again.
+
+docker-compose up --build
 
 
 
