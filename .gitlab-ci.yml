@@ -1,0 +1,31 @@
+stages:
+  - build
+  - test
+  - deploy
+
+# Build Stage
+build:
+  stage: build
+  script:
+    - echo "Building project..."
+    - # Add your build commands here, e.g., npm install or a Docker build.
+  only:
+    - nikhil-v1
+
+# Test Stage
+test:
+  stage: test
+  script:
+    - echo "Running tests..."
+    - # Add test commands here, e.g., npm test, pytest, etc.
+  only:
+    - nikhil-v1
+
+# Deploy Stage
+deploy:
+  stage: deploy
+  script:
+    - echo "Deploying project..."
+    - # Add your deployment commands, e.g., Docker push, AWS/GCP/Azure commands.
+  only:
+    - nikhil-v1
