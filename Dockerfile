@@ -20,5 +20,7 @@ EXPOSE ${PORT}
 ENV FLASK_APP=main.py
 ENV FLASK_ENV=production
 
+
+
 # Command to run the app with Gunicorn
-CMD ["sh", "-c", "gunicorn -b 0.0.0.0:${PORT} --workers=3 --timeout=120 main:app"]
+CMD ["sh", "-c", "python faiss-store.py && gunicorn -b 0.0.0.0:${PORT} --workers=3 --timeout=120 main:app"]

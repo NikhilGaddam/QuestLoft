@@ -9,7 +9,6 @@ import uuid
 import azure.cognitiveservices.speech as speechsdk
 import psycopg2
 from psycopg2 import sql
-from config import get_db_connection
 from authentication.auth_routes import auth_bp
 
 
@@ -29,6 +28,7 @@ logging.basicConfig(level=logging.DEBUG)
 load_dotenv(find_dotenv())
 
 app = Flask(__name__)
+CORS(app)
 
 
 

@@ -8,7 +8,7 @@ load_dotenv()
 def get_db_connection():
     try:
         # Check that all required environment variables are set
-        db_host = os.getenv("DB_HOST")
+        db_host = os.getenv("DB_HOST", "localhost")
         db_name = os.getenv("DB_NAME")
         db_user = os.getenv("DB_USER")
         db_password = os.getenv("DB_PASSWORD")
