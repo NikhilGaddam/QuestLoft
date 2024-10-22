@@ -21,7 +21,7 @@ def get_answer_from_question(llm, question, chat_id):
     context = get_close_vector_text(question)
     chat_history = chat_histories.setdefault(chat_id, [])
     template = ChatPromptTemplate.from_messages([
-        ("system", "You are limited to 2 sentences. If the context is relevant to the question, only use that and do not add extra things. Here is some information for you to answer question {context}"),
+        ("system", "If the context is relevant to the question, only use that and do not add extra things. Here is some information for you to answer question {context}"),
         MessagesPlaceholder(variable_name="chat_history"),
         ("human", "{question}")])
 
