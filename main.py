@@ -32,7 +32,24 @@ load_dotenv(find_dotenv())
 app = Flask(__name__)
 CORS(app)
 
-redis_client = redis.StrictRedis(host=os.getenv("REDIS_HOST", "localhost"), port=os.getenv("REDIS_PORT", 6379), db=0)
+redis_host = os.getenv("REDISHOST", "localhost")
+redis_port = os.getenv("REDISPORT", 6379)
+redis_user = os.getenv("REDISUSER", None)
+redis_password = os.getenv("REDISPASSWORD", None)
+redis_url = os.getenv("REDIS_URL", None)
+
+# Connect to Redis using the environment variables
+if redis_url:
+    redis_client = redis.StrictRedis.from_url(redis_url)
+else:
+    redis_client = redis.StrictRedis(
+        host=redis_host,
+        port=redis_port,
+        username=redis_user,
+        password=redis_password,
+        db=0
+    )
+
 
 
 CORS(app, resources={r"/chat/*": {
