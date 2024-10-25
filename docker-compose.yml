@@ -1,6 +1,11 @@
-version: '3'
-
 services:
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+
   backend:
     build: ./
     ports:
@@ -8,6 +13,7 @@ services:
     env_file:
       - .env
     depends_on:
+      - redis        # Ensure Redis is listed here
       - postgres
     networks:
       - app-network

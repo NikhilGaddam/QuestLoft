@@ -6,25 +6,31 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from config.json_schema import Feedback
-quiz_sessions = {}
 
-def start_quiz(user_id, grade, llm):
+
+
+
+def start_quiz(user_id, grade, llm,redis_client):
     # Generate 10 questions based on the student's grade
     questions = generate_quiz_questions(grade, llm)
     if not questions:
         return "Sorry, I couldn't generate quiz questions at this time."
     # Initialize quiz session
     quiz_id = str(uuid.uuid4())
-    quiz_sessions[user_id] = {
+    session_data = {
         'quiz_id': quiz_id,
         'questions': questions,
         'current_question': 0,
         'answers': [],
         'grade': grade,
-        'start_time': datetime.datetime.now()
+        'start_time': str(datetime.datetime.now())
     }
+
+    # Store session data in Redis
+    redis_client.set(user_id, json.dumps(session_data))
+
     # Return the first question
-    return questions[0]['question']
+    return 'Question 1: '+ questions[0]['question']
 
 def generate_quiz_questions(grade, llm):
     # Define the prompt template
@@ -59,11 +65,11 @@ def generate_quiz_questions(grade, llm):
         return []
 
 
-def handle_quiz_answer(user_id, answer, llm):
-    session = quiz_sessions.get(user_id)
-    if not session:
+def handle_quiz_answer(user_id, answer, llm,redis_client):
+    session_data = redis_client.get(user_id)
+    if not session_data:
         return "You are not currently in a quiz session. Please type /quiz to start a new quiz."
-    
+    session = json.loads(session_data)
     current_question_index = session['current_question']
     current_question = session['questions'][current_question_index]
     
@@ -91,15 +97,16 @@ def handle_quiz_answer(user_id, answer, llm):
             feedback['areas_well_done'], 
             feedback['areas_to_improve']
         )
-        
-        del quiz_sessions[user_id]
+        redis_client.delete(user_id)
         
         return (f"Quiz completed! Your score is {score}/{total_questions}.\n\n"
                 f"Areas well done:\n{feedback['areas_well_done']}\n\n"
                 f"Areas to improve:\n{feedback['areas_to_improve']}")
     else:
-        next_question = session['questions'][session['current_question']]['question']
-        return next_question
+        redis_client.set(user_id, json.dumps(session))
+        next_question_index = session['current_question']
+        next_question = session['questions'][next_question_index]['question']
+        return f"Question {next_question_index + 1}: {next_question}"
 
 def calculate_score_and_feedback(answers, llm):
     score = 0

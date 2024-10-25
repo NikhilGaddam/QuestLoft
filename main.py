@@ -6,11 +6,12 @@ from dotenv import load_dotenv, find_dotenv
 from openai import OpenAI
 import logging
 import uuid
+import redis
 import azure.cognitiveservices.speech as speechsdk
 import psycopg2
 from psycopg2 import sql
 from authentication.auth_routes import auth_bp
-from services.quiz import start_quiz, handle_quiz_answer, quiz_sessions
+from services.quiz import start_quiz, handle_quiz_answer
 from config.db_config import get_db_connection
 
 # # Database connection settings
@@ -31,6 +32,7 @@ load_dotenv(find_dotenv())
 app = Flask(__name__)
 CORS(app)
 
+redis_client = redis.StrictRedis(host=os.getenv("REDIS_HOST", "localhost"), port=os.getenv("REDIS_PORT", 6379), db=0)
 
 
 CORS(app, resources={r"/chat/*": {
@@ -88,6 +90,7 @@ def chat_text():
         user_role = None
 
     if user_message.strip() == "/quiz":
+        print("User started a quiz")
         if user_role != "Student":
             return jsonify({'error': 'Only students can start a quiz.'}), 403
         connection = get_db_connection()
@@ -98,17 +101,21 @@ def chat_text():
         connection.close()
         if result:
             grade = result[0]
-            question = start_quiz(user_id, grade, llm)
+            question = start_quiz(user_id, grade, llm,redis_client)
             return jsonify({"reply": question}), 200
         else:
             return jsonify({'error': 'Student grade not found.'}), 404
     else:
-        if user_id in quiz_sessions:
+        session_data = redis_client.get(user_id)
+
+        if session_data:
+            print("User is in a quiz session")
             # Handle quiz answer
-            reply = handle_quiz_answer(user_id, user_message,llm)
+            reply = handle_quiz_answer(user_id, user_message,llm,redis_client)
             return jsonify({"reply": reply}), 200
         else:
             # Normal chat processing
+            print("User is in a normal chat")
             answer = "Unable to get answers"
             if user_message:
                 answer, chat_history = get_answer_from_question(llm, user_message, chat_id)
