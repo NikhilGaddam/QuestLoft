@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 import psycopg2
 from psycopg2 import sql
-from config import get_db_connection
+from config.db_config import get_db_connection
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from dotenv import load_dotenv, find_dotenv

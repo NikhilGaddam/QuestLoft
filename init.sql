@@ -36,3 +36,33 @@ CREATE TABLE IF NOT EXISTS TestScores (
   TestDate TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE
 );
+
+INSERT INTO Users (
+  UserID, 
+  auth0_user_id, 
+  first_name, 
+  last_name, 
+  user_role, 
+  is_approved, 
+  user_created_time, 
+  approved_time
+) VALUES (
+  12345, 
+  'auth0|sample_user_12345', 
+  'John', 
+  'Doe', 
+  'Student', 
+  TRUE, 
+  CURRENT_TIMESTAMP, 
+  CURRENT_TIMESTAMP
+);
+
+INSERT INTO Students (
+  UserID, 
+  Grade
+) VALUES (
+  12345, 
+  '5'
+);
+
+

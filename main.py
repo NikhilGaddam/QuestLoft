@@ -10,7 +10,8 @@ import azure.cognitiveservices.speech as speechsdk
 import psycopg2
 from psycopg2 import sql
 from authentication.auth_routes import auth_bp
-
+from services.quiz import start_quiz, handle_quiz_answer, quiz_sessions
+from config.db_config import get_db_connection
 
 # # Database connection settings
 # DB_HOST = "c-questloft-custer.e4a4to25j6hszu.postgres.cosmos.azure.com"
@@ -67,20 +68,54 @@ def get_status():
 def chat_text():
     data = request.get_json()
     user_message = data.get('userMessage')
+    print("User Message:", user_message)
+    user_id = "12345" # Need to modify it later
     chat_id = data.get('chat_id') or str(uuid.uuid4())
     chat_id_exists = bool(data.get('chat_id'))
-    
-    answer = "Unable to get answers"
-    if user_message:
-        answer, chat_history = get_answer_from_question(llm, user_message, chat_id)
 
-    response = {"reply": answer, "chat_history": chat_history}
-    if not chat_id_exists:
-        response["chat_id"] = chat_id
+    if not user_id:
+        return jsonify({'error': 'User ID is required.'}), 400
 
-    return jsonify(response), 200
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute("SELECT user_role FROM Users WHERE UserID = %s", (user_id,))
+    result = cursor.fetchone()
+    cursor.close()
+    connection.close()
+    if result:
+        user_role = result[0]
+    else:
+        user_role = None
 
-
+    if user_message.strip() == "/quiz":
+        if user_role != "Student":
+            return jsonify({'error': 'Only students can start a quiz.'}), 403
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT Grade FROM Students WHERE UserID = %s", (user_id,))
+        result = cursor.fetchone()
+        cursor.close()
+        connection.close()
+        if result:
+            grade = result[0]
+            question = start_quiz(user_id, grade, llm)
+            return jsonify({"reply": question}), 200
+        else:
+            return jsonify({'error': 'Student grade not found.'}), 404
+    else:
+        if user_id in quiz_sessions:
+            # Handle quiz answer
+            reply = handle_quiz_answer(user_id, user_message,llm)
+            return jsonify({"reply": reply}), 200
+        else:
+            # Normal chat processing
+            answer = "Unable to get answers"
+            if user_message:
+                answer, chat_history = get_answer_from_question(llm, user_message, chat_id)
+            response = {"reply": answer, "chat_history": chat_history}
+            if not chat_id_exists:
+                response["chat_id"] = chat_id
+            return jsonify(response), 200
 
 @app.route('/chat/voice', methods=['POST'])
 def chat_voice():
@@ -137,6 +172,5 @@ def chat_voice_to_voice():
 
 
 if __name__ == '__main__':
-    PORT = int(os.getenv("PORT", 6000))
-    app.run(host='0.0.0.0', port=PORT, debug=True)
+    app.run(host='0.0.0.0', port=8082, debug=True)
 
