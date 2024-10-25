@@ -32,6 +32,39 @@ def start_quiz(user_id, grade, llm, redis_client):
 
     return 'Question 1: ' + questions[0]['question']
 
+def generate_quiz_questions(grade, llm):
+    # Define the prompt template
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a helpful assistant that generates quiz questions."),
+        ("human", "Generate 10 quiz questions with answers for a student in grade {grade}. "
+                  "The questions should be appropriate for their difficulty level. "
+                  "Provide only the questions and the correct answers in a valid JSON format as a list of dictionaries. "
+                  "Do not include any other text or explanations or code blocks. "
+                  "Each dictionary should have 'question' and 'answer' keys. Example: "
+                  "[{{\"question\": \"What is 2 + 2?\", \"answer\": \"4\"}}, "
+                  "{{\"question\": \"What is the capital of France?\", \"answer\": \"Paris\"}}]")
+    ])
+
+    # Create the chain
+    chain = prompt | llm
+
+    # Invoke the chain, passing 'grade' as input
+    res = chain.invoke({"grade": grade})
+
+    # Extract the AI's response
+    ai_response = res.content
+    print("AI Response:", ai_response)  
+    try:
+        questions = json.loads(ai_response)
+        # Ensure we have 10 questions
+        if len(questions) != 10:
+            print("Error: Expected 10 questions, but received", len(questions))
+            return []
+        return questions
+    except json.JSONDecodeError:
+        print("Error: Failed to decode JSON response")
+        return []
+    
 def handle_quiz_answer(user_id, answer, llm, redis_client):
     try:
         session_data = redis_client.get(user_id)
