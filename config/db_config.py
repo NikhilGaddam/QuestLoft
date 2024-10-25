@@ -20,7 +20,7 @@ def get_db_connection():
 
         # Establish the database connection using environment variables
         connection = psycopg2.connect(
-            host="0.0.0.0",
+            host=db_host,
             database=db_name,
             user=db_user,
             password=db_password,
