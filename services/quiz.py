@@ -41,6 +41,7 @@ def generate_quiz_questions(grade, llm):
         ("human", "Generate 10 quiz questions with answers for a student in grade {grade}. "
                   "The questions should be appropriate for their difficulty level. "
                   "Provide only the questions and the correct answers in a valid JSON format as a list of dictionaries. "
+                      "Do not include any other text or explanations or ``` code blocks. "
                   "Each dictionary should have 'question' and 'answer' keys.")
     ])
     
@@ -57,6 +58,7 @@ def generate_quiz_questions(grade, llm):
         return questions
     except json.JSONDecodeError:
         logging.error("Failed to decode AI response for questions")
+        logging.error(f"AI Response: {ai_response}")
         return []
 
 def handle_quiz_answer(user_id, answer, llm, redis_client):
