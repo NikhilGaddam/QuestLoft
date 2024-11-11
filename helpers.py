@@ -6,9 +6,18 @@ from langchain_community.vectorstores import FAISS
 from dotenv import load_dotenv, find_dotenv
 import azure.cognitiveservices.speech as speechsdk
 import base64
+from datetime import datetime
 
 load_dotenv(find_dotenv())
 chat_histories = {}
+
+flags = {}
+
+safe_for_kids_prompts = """
+Analyze the following message and determine if it is appropriate for children. 
+Consider factors such as explicit language, violence, sexual content, or any other harmful or inappropriate material. 
+Respond with either 'Safe' or give a description why we should not ask these question, assume the user is a kid and say that I could help with something else
+"""
 
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
@@ -16,8 +25,35 @@ vector_store = FAISS.load_local(
     "faiss_index", embeddings, allow_dangerous_deserialization=True
 )
 
+def add_flagged_message(email, message):
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if email in flags:
+        flags[email].append((message, current_time))
+    else:
+        flags[email] = [(message, current_time)]
 
-def get_answer_from_question(llm, question, chat_id):
+def get_answer_from_question(llm, question, chat_id, user_email):
+    context = get_close_vector_text(question)
+    chat_history = chat_histories.setdefault(chat_id, [])
+    template = ChatPromptTemplate.from_messages([
+        ("system", safe_for_kids_prompts),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{question}")])
+
+    chain = template | llm
+
+    res = chain.invoke({"context": context, "question": question, "chat_history": chat_history})
+
+    if res.content == "Safe":
+        return get_answer_from_question_2(llm, question, chat_id)
+    
+    chat_history.append(HumanMessage(content=question))
+    chat_history.append(AIMessage(content=res.content))
+    add_flagged_message(user_email, question)
+    print(flags)
+    return res.content, str(chat_history)
+
+def get_answer_from_question_2(llm, question, chat_id):
     context = get_close_vector_text(question)
     chat_history = chat_histories.setdefault(chat_id, [])
     template = ChatPromptTemplate.from_messages([
