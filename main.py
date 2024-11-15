@@ -42,15 +42,7 @@ redis_url = os.getenv("REDIS_URL", None)
 if redis_url:
     redis_client = redis.StrictRedis.from_url(redis_url)
 else:
-    redis_client = redis.StrictRedis(
-        host=redis_host,
-        port=redis_port,
-        username=redis_user,
-        password=redis_password,
-        db=0
-    )
-
-
+    redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0)
 
 CORS(app, resources={r"/chat/*": {
     "origins": "http://localhost:3000",

@@ -31,13 +31,15 @@ def request_admin_approval():
     data = request.json
     auth0_user_id = data.get('auth0_user_id')
     user_email = data.get('user_email')
-    user_role = data.get('user_role')  # Either "Teacher", "Parent", or "Student"
+    user_role = data.get('user_role')
+    first_name = data.get('first_name')
+    last_name = data.get('last_name')
+    grade = data.get('grade') if user_role == 'Student' else None
 
     # Validate payload
-    if not auth0_user_id or not isinstance(auth0_user_id, str) or not user_role or not isinstance(user_role, str) or not user_email:
+    if not all([auth0_user_id, user_email, user_role, first_name, last_name]):
         return jsonify({'error': 'Invalid data types'}), 400
 
-    # Validate user_role
     if user_role not in ['Teacher', 'Parent', 'Student']:
         return jsonify({'error': 'Invalid user role'}), 400
 
@@ -49,42 +51,38 @@ def request_admin_approval():
     cur = conn.cursor()
 
     try:
-        # Check if the user with the provided auth0_user_id already exists
         cur.execute("SELECT auth0_user_id FROM users WHERE auth0_user_id = %s", (auth0_user_id,))
         user_exists = cur.fetchone()
 
         if user_exists:
-            return jsonify({'error': 'User Already Exists'}), 409  # Conflict status code
-        
-        # Send registration confirmation email
+            return jsonify({'error': 'User Already Exists'}), 409
+
         send_email(
             template_id='d-f41f6a5e55064abba59ebe9081d1c0a0',  # Registration Confirmation Template
             to_email=user_email,
-            dynamic_data={'user_name': auth0_user_id}
+            dynamic_data={'user_name': first_name}
         )
 
-        # If the user role is "Student", they are automatically approved
-        if user_role == 'Student':
-            is_approved = True
-            approval_status = "Approved"
- 
-        else:
-            is_approved = False
-            approval_status = "Pending Approval"
-            # Send pending approval email
+        is_approved = True if user_role == 'Student' else False
+        approval_status = "Approved" if is_approved else "Pending Approval"
+
+        if not is_approved:
             send_email(
                 template_id='d-d311b1449ac044e8a41c2840db00ce45',  # Admin Approval Request Template
                 to_email=admins_email,
-                dynamic_data={'user_name': auth0_user_id, 'user_role': user_role}
+                dynamic_data={'user_name': first_name, 'user_role': user_role}
             )
 
-        # Insert the user details into the users table
         cur.execute("""
-            INSERT INTO users (auth0_user_id, user_role, is_approved, user_created_time)
-            VALUES (%s, %s, %s, NOW())
-        """, (auth0_user_id, user_role, is_approved))
-        conn.commit()
+            INSERT INTO users (auth0_user_id, first_name, last_name, user_role, is_approved, user_created_time)
+            VALUES (%s, %s, %s, %s, %s, NOW()) RETURNING UserID
+        """, (auth0_user_id, first_name, last_name, user_role, is_approved))
+        user_id = cur.fetchone()[0]
 
+        if user_role == 'Student':
+            cur.execute("INSERT INTO students (UserID, Grade) VALUES (%s, %s)", (user_id, grade))
+
+        conn.commit()
         return jsonify({'approval': approval_status}), 200
     except psycopg2.IntegrityError:
         return jsonify({'error': 'Database integrity error'}), 400
@@ -95,27 +93,27 @@ def request_admin_approval():
         cur.close()
         conn.close()
 
-
 # API for admin to approve or reject a user
 @auth_bp.route('/auth/updateApproval', methods=['POST'])
 def update_approval():
     data = request.json
     auth0_user_id = data.get('auth0_user_id')
-    is_approved = data.get('is_approved')  # Boolean: True for approve, False for reject
+    is_approved = data.get('is_approved')
     user_email = data.get('user_email')
+    student_id = data.get('student_id') if data.get('user_role') == 'Parent' else None
 
     # Validate input
-    if not auth0_user_id or not isinstance(auth0_user_id, str) or is_approved is None or not user_email:
+    if not all([auth0_user_id, is_approved, user_email]):
         return jsonify({'error': 'Invalid data types'}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
 
     try:
-        # Update approval status in the database
         cur.execute("""
             UPDATE users
-            SET is_approved = %s, approved_time = NOW() WHERE auth0_user_id = %s
+            SET is_approved = %s, approved_time = NOW()
+            WHERE auth0_user_id = %s
         """, (is_approved, auth0_user_id))
 
         if cur.rowcount == 0:
@@ -124,14 +122,19 @@ def update_approval():
         conn.commit()
 
         if is_approved:
-            # Send account approved email
+            # If the user is a Parent, link to StudentID in the Parents table
+            if data.get('user_role') == 'Parent' and student_id:
+                cur.execute("""
+                    INSERT INTO parents (UserID, StudentUserID)
+                    SELECT UserID, %s FROM users WHERE auth0_user_id = %s
+                """, (student_id, auth0_user_id))
+
             send_email(
                 template_id='d-6f7cc0a01dc84945b6b77fbd8171a2ec',  # Account Approved Template
                 to_email=user_email,
                 dynamic_data={'user_name': auth0_user_id}
             )
         else:
-            # Send account rejected email
             send_email(
                 template_id='d-7106815014014a7aa627d6fef2dbab0d',  # Account Rejected Template
                 to_email=user_email,
@@ -145,7 +148,6 @@ def update_approval():
     finally:
         cur.close()
         conn.close()
-
 
 # API to validate if a user is approved
 @auth_bp.route('/auth/validateUser', methods=['GET'])
