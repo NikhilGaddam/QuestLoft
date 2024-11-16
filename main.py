@@ -79,6 +79,7 @@ def get_status():
 def chat_text():
     data = request.get_json()
     user_message = data.get('userMessage')
+    user_email = data.get('userEmail')
     print("User Message:", user_message)
     user_id = "12345" # Need to modify it later
     chat_id = data.get('chat_id') or str(uuid.uuid4())
@@ -127,7 +128,7 @@ def chat_text():
             print("User is in a normal chat")
             answer = "Unable to get answers"
             if user_message:
-                answer, chat_history = get_answer_from_question(llm, user_message, chat_id)
+                answer, chat_history = get_answer_from_question(llm, user_message, chat_id, user_email)
             response = {"reply": answer, "chat_history": chat_history}
             if not chat_id_exists:
                 response["chat_id"] = chat_id
@@ -140,6 +141,7 @@ def chat_voice():
     
     audio_file = request.files['file']
     chat_id = request.form.get('chat_id')
+    user_email = request.form.get('userEmail')
     if not chat_id:
         chat_id = str(uuid.uuid4())
     answer = "Sorry, I could not get that, please try again"
@@ -147,7 +149,7 @@ def chat_voice():
     try:        
         converted_text = speech_to_text(client=client, audio_file = ('audio.wav', audio_file, 'audio/wav'))
         if converted_text and len(converted_text) > 5:
-            answer = get_answer_from_question(llm, converted_text, chat_id)
+            answer = get_answer_from_question(llm, converted_text, chat_id, user_email)
         # Use this to test the frontend, to have a sample response without using whisper
         # answer = "Take this sample message to make the UI"
         # converted_text = "hello there"
@@ -171,7 +173,7 @@ def chat_voice_to_voice():
         converted_text = speech_to_text(client=client, audio_file = ('audio.wav', audio_file, 'audio/wav'))
         # The api will only respond if the users says a text that is longer than 5 characters
         if converted_text and len(converted_text) > 5:
-            answer, chat_history = get_answer_from_question(llm, converted_text, chat_id)
+            answer, chat_history = get_answer_from_question(llm, converted_text, chat_id, user_email)
             wav_base64 = text_to_speech(speech_synthesizer, file_name, answer)
         # wav_base64 = test_test_to_speech_fe(test_file_name)
         # answer = "Take this sample message to make the UI"
