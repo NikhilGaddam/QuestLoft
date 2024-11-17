@@ -92,6 +92,5 @@ gunicorn
 redis
 langchain_community==0.2
 faiss-cpu
-psycopg2
 pypdf
 azure-cognitiveservices-speech==1.40.0

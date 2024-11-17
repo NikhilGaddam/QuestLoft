@@ -3,19 +3,10 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
-
+load_dotenv(override=True)
 def get_db_connection():
     try:
-        # Check that all required environment variables are set
-        environment = os.getenv("FLASK_ENV", "local")
-
-        # Set the database host based on the environment
-        if environment == "local":
-            db_host = "0.0.0.0"
-        else:
-            db_host = os.getenv("DB_HOST")
-
+        db_host = os.getenv("DB_HOST")
         db_name = os.getenv("DB_NAME")
         db_user = os.getenv("DB_USER")
         db_password = os.getenv("DB_PASSWORD")

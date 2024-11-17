@@ -7,6 +7,7 @@ from dotenv import load_dotenv, find_dotenv
 import azure.cognitiveservices.speech as speechsdk
 import base64
 from datetime import datetime
+from config.db_config import get_db_connection
 
 load_dotenv(find_dotenv())
 chat_histories = {}
@@ -27,10 +28,54 @@ vector_store = FAISS.load_local(
 
 def add_flagged_message(email, message):
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    if email in flags:
-        flags[email].append((message, current_time))
-    else:
-        flags[email] = [(message, current_time)]
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # Insert the flagged message into the database
+            cursor.execute(
+                """
+                INSERT INTO flags (email, message, timestamp)
+                VALUES (%s, %s, %s);
+                """,
+                (email, message, current_time)
+            )
+        connection.commit()
+    except Exception as e:
+        print(f"Error adding flagged message: {e}")
+        connection.rollback()
+    finally:
+        connection.close()
+        
+def get_flagged_messages(email=None):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            # Retrieve flagged messages for a specific email or all emails
+            if email:
+                cursor.execute(
+                    """
+                    SELECT email, message, timestamp
+                    FROM flags
+                    WHERE email = %s
+                    ORDER BY timestamp DESC;
+                    """,
+                    (email,)
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT email, message, timestamp
+                    FROM flags
+                    ORDER BY timestamp DESC;
+                    """
+                )
+            flagged_messages = cursor.fetchall()
+        return flagged_messages
+    except Exception as e:
+        print(f"Error retrieving flagged messages: {e}")
+        return []
+    finally:
+        connection.close()
 
 def get_answer_from_question(llm, question, chat_id, user_email):
     context = get_close_vector_text(question)

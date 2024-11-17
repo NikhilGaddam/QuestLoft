@@ -74,6 +74,38 @@ llm = ChatOpenAI(api_key=os.environ.get("OPENAI_API_KEY"),
 def get_status():
     return "Server Running", 200
 
+@app.route('/flags', methods=['GET'])
+def get_flagged_messages_api():
+    search_term = request.args.get('search', None)
+    connection = get_db_connection()
+    try:
+        cursor = connection.cursor()
+        if search_term:
+            query = sql.SQL("""
+                SELECT email, message, timestamp
+                FROM flags
+                WHERE email ILIKE %s OR message ILIKE %s OR CAST(timestamp AS TEXT) ILIKE %s
+                ORDER BY timestamp DESC;
+            """)
+            cursor.execute(query, (f"%{search_term}%", f"%{search_term}%", f"%{search_term}%"))
+        else:
+            cursor.execute("""
+                SELECT email, message, timestamp
+                FROM flags
+                ORDER BY timestamp DESC;
+            """)
+        flagged_messages = cursor.fetchall()
+        cursor.close()
+    except Exception as e:
+        print(f"Error retrieving flagged messages: {e}")
+        return jsonify({'error': 'Unable to retrieve flagged messages.'}), 500
+    finally:
+        connection.close()
+    result = [
+        {"email": row[0], "message": row[1], "timestamp": row[2].strftime("%Y-%m-%d %H:%M:%S")}
+        for row in flagged_messages
+    ]
+    return jsonify(result), 200
 
 @app.route('/chat/text', methods=['POST'])
 def chat_text():
