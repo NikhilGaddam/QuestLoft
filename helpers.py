@@ -1,6 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import MessagesPlaceholder
+from langchain_core.output_parsers import JsonOutputParser
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from dotenv import load_dotenv, find_dotenv
@@ -8,17 +9,16 @@ import azure.cognitiveservices.speech as speechsdk
 import base64
 from datetime import datetime
 from config.db_config import get_db_connection
+from pydantic import BaseModel, Field
 
 load_dotenv(find_dotenv())
 chat_histories = {}
 
-flags = {}
+class JsonInformation(BaseModel):
+    is_unsafe_for_k_12_children: bool = Field(description="Is the message unsafe for K-12 children?")
+    response: str = Field(description="Response to the message")
+json_parser = JsonOutputParser(pydantic_object=JsonInformation)
 
-safe_for_kids_prompts = """
-Analyze the following message and determine if it is appropriate for children. 
-Consider factors such as explicit language, violence, sexual content, or any other harmful or inappropriate material. 
-Respond with either 'Safe' or give a description why we should not ask these question, assume the user is a kid and say that I could help with something else
-"""
 
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
@@ -31,7 +31,6 @@ def add_flagged_message(email, message):
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
-            # Insert the flagged message into the database
             cursor.execute(
                 """
                 INSERT INTO flags (email, message, timestamp)
@@ -45,7 +44,7 @@ def add_flagged_message(email, message):
         connection.rollback()
     finally:
         connection.close()
-        
+
 def get_flagged_messages(email=None):
     connection = get_db_connection()
     try:
@@ -80,40 +79,38 @@ def get_flagged_messages(email=None):
 def get_answer_from_question(llm, question, chat_id, user_email):
     context = get_close_vector_text(question)
     chat_history = chat_histories.setdefault(chat_id, [])
+    prompt = """
+    You are questy, the AI Chatbot for Thinkabit Labs @ Virginia Tech.
+
+    - Always respond in JSON format.
+    - If the message is not safe for K-12 students, analyze the following message and determine if it is appropriate for children. Consider factors such as explicit language, violence, sexual content, or any other harmful or inappropriate material. Respond with a description of why we should not ask these questions, assuming the user is a kid, and say that you could help with something else.
+    - If you need clarification, respond in JSON format asking for the specific details required.
+
+    Respond in JSON format with the following keys `is_unsafe_for_k_12_children` and `response`.
+    Message to Analyze: "{context}"
+    """
     template = ChatPromptTemplate.from_messages([
-        ("system", safe_for_kids_prompts),
+        ("system", prompt),
         MessagesPlaceholder(variable_name="chat_history"),
-        ("human", "{question}")])
+        ("human", "{question}")
+    ])
 
     chain = template | llm
 
-    res = chain.invoke({"context": context, "question": question, "chat_history": chat_history})
-
-    if res.content == "Safe":
-        return get_answer_from_question_2(llm, question, chat_id)
+    res = chain.invoke({
+        "context": context,
+        "question": question,
+        "chat_history": chat_history
+    })
+    print(res.content)
+    parsed_response = json_parser.parse(res.content)
+    if parsed_response['is_unsafe_for_k_12_children']:
+        add_flagged_message(user_email, question)
+        return parsed_response['response'], str(chat_history)
     
     chat_history.append(HumanMessage(content=question))
-    chat_history.append(AIMessage(content=res.content))
-    add_flagged_message(user_email, question)
-    print(flags)
-    return res.content, str(chat_history)
-
-def get_answer_from_question_2(llm, question, chat_id):
-    context = get_close_vector_text(question)
-    chat_history = chat_histories.setdefault(chat_id, [])
-    template = ChatPromptTemplate.from_messages([
-        ("system", "You are questy, the AI Chatbot for THINKABIT LABS @ VIRGINIA TECH, If the context is relevant to the question, only use that and do not add extra things. Here is some information for you to answer question {context}"),
-        MessagesPlaceholder(variable_name="chat_history"),
-        ("human", "{question}")])
-
-    chain = template | llm
-
-    res = chain.invoke({"context": context, "question": question, "chat_history": chat_history})
-
-    chat_history.append(HumanMessage(content=question))
-    chat_history.append(AIMessage(content=res.content))
-    return res.content, str(chat_history)
-
+    chat_history.append(AIMessage(content=parsed_response['response']))
+    return parsed_response['response'], str(chat_history)
 
 def speech_to_text(client, audio_file):
     transcription = client.audio.transcriptions.create(

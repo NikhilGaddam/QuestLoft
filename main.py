@@ -12,6 +12,7 @@ import psycopg2
 from psycopg2 import sql
 from authentication.auth_routes import auth_bp
 from services.quiz import start_quiz, handle_quiz_answer
+from services.quiz_analysis import quiz_analysis_bp
 from config.db_config import get_db_connection
 
 # # Database connection settings
@@ -27,10 +28,11 @@ from helpers import speech_to_text, get_answer_from_question, text_to_speech
 
 logging.basicConfig(level=logging.DEBUG)
 
-load_dotenv(find_dotenv())
+load_dotenv(override=True)
 
 app = Flask(__name__)
 CORS(app)
+app.register_blueprint(quiz_analysis_bp)
 
 redis_host = os.getenv("REDISHOST", "localhost")
 redis_port = os.getenv("REDISPORT", 6379)
