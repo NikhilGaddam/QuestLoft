@@ -81,8 +81,6 @@ llm = ChatOpenAI(api_key=os.environ.get("OPENAI_API_KEY"),
 # file_config = speechsdk.audio.AudioOutputConfig(filename=file_name)
 # speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=file_config)
 
-# CMS
-
 @app.route('/', methods=['GET'])
 def get_status():
     return "Server Running", 200
