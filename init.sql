@@ -4,6 +4,17 @@ DROP TABLE IF EXISTS Parents;
 DROP TABLE IF EXISTS Students;
 DROP TABLE IF EXISTS Users;
 
+CREATE TABLE IF NOT EXISTS documents (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(100),
+    filename VARCHAR(100),
+    s3_key VARCHAR(200) UNIQUE,
+    size INTEGER,
+    upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    tags TEXT[],
+    content_type VARCHAR(100),
+    description TEXT
+);
 
 CREATE TABLE IF NOT EXISTS Users (
   UserID SERIAL PRIMARY KEY,
@@ -90,5 +101,7 @@ INSERT INTO Students (
   12345, 
   '5'
 );
+
+
 
 

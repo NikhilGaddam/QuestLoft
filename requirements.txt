@@ -94,3 +94,5 @@ langchain_community==0.2
 faiss-cpu
 pypdf
 azure-cognitiveservices-speech==1.40.0
+flask-sqlalchemy==3.1.1
+boto3==1.35.63

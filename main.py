@@ -14,6 +14,7 @@ from authentication.auth_routes import auth_bp
 from services.quiz import start_quiz, handle_quiz_answer
 from services.quiz_analysis import quiz_analysis_bp
 from config.db_config import get_db_connection
+from cms import cms
 
 # # Database connection settings
 # DB_HOST = "c-questloft-custer.e4a4to25j6hszu.postgres.cosmos.azure.com"
@@ -33,6 +34,7 @@ load_dotenv(override=True)
 app = Flask(__name__)
 CORS(app)
 app.register_blueprint(quiz_analysis_bp)
+app.register_blueprint(cms, url_prefix='/api')
 
 redis_host = os.getenv("REDISHOST", "localhost")
 redis_port = os.getenv("REDISPORT", 6379)
@@ -46,19 +48,26 @@ if redis_url:
 else:
     redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0)
 
-CORS(app, resources={r"/chat/*": {
-    "origins": "http://localhost:3000",
-    "methods": ["GET", "POST", "OPTIONS"],
-    "allow_headers": ["Content-Type", "Authorization"]
-}
+CORS(app, resources={
+    r"/*": {  # This will cover all routes
+        "origins": ["http://localhost:3000"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
 })
+
+# CORS(app, resources={r"/chat/*": {
+#     "origins": "http://localhost:3000",
+#     "methods": ["GET", "POST", "OPTIONS"],
+#     "allow_headers": ["Content-Type", "Authorization"]
+# }
+# })
 
 app.register_blueprint(auth_bp)
 
 client = OpenAI()
 llm = ChatOpenAI(api_key=os.environ.get("OPENAI_API_KEY"),
                  model=os.environ.get("OPENAI_MODEL_NAME"))
-
 
 # UPLOAD_FOLDER = './uploads'
 # # Just for text to speech
@@ -71,6 +80,8 @@ llm = ChatOpenAI(api_key=os.environ.get("OPENAI_API_KEY"),
 # file_name = f"{UPLOAD_FOLDER}/output.wav"
 # file_config = speechsdk.audio.AudioOutputConfig(filename=file_name)
 # speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=file_config)
+
+# CMS
 
 @app.route('/', methods=['GET'])
 def get_status():
