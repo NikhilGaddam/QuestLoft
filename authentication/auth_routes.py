@@ -34,16 +34,22 @@ def request_admin_approval():
     user_role = data.get('user_role')
     first_name = data.get('first_name')
     last_name = data.get('last_name')
-    grade = data.get('grade') if user_role == 'Student' else None
 
-    # Validate payload
-    if not all([auth0_user_id, user_email, user_role, first_name, last_name]):
-        return jsonify({'error': 'Invalid data types'}), 400
+    # Role-specific fields
+    grade = data.get('grade') if user_role == 'Student' else None
+    student_school = data.get('student_school') if user_role == 'Student' else None
+    teacher_school = data.get('teacher_school') if user_role == 'Teacher' else None
+    teacher_expertise = data.get('teacher_expertise') if user_role == 'Teacher' else None
+    child_email = data.get('child_email') if user_role == 'Parent' else None
+
+    # Validate required fields
+    required_fields = [auth0_user_id, user_email, user_role, first_name, last_name]
+    if not all(required_fields):
+        return jsonify({'error': 'Missing required fields'}), 400
 
     if user_role not in ['Teacher', 'Parent', 'Student']:
         return jsonify({'error': 'Invalid user role'}), 400
 
-    # Validate auth0_user_id format
     if not is_valid_auth0_id(auth0_user_id):
         return jsonify({'error': 'Invalid auth0_user_id format'}), 400
 
@@ -51,21 +57,51 @@ def request_admin_approval():
     cur = conn.cursor()
 
     try:
+        # Check if the user already exists
         cur.execute("SELECT auth0_user_id FROM users WHERE auth0_user_id = %s", (auth0_user_id,))
-        user_exists = cur.fetchone()
-
-        if user_exists:
+        if cur.fetchone():
             return jsonify({'error': 'User Already Exists'}), 409
 
+        # Auto-approve students, other roles require admin approval
+        is_approved = user_role == 'Student'
+        approval_status = "Approved" if is_approved else "Pending Approval"
+
+        # Insert user data into the `users` table
+        cur.execute("""
+            INSERT INTO users (
+                auth0_user_id, first_name, last_name, user_role, is_approved, user_created_time
+            ) VALUES (%s, %s, %s, %s, %s, NOW()) RETURNING UserID
+        """, (auth0_user_id, first_name, last_name, user_role, is_approved))
+        user_id = cur.fetchone()[0]
+
+        # Insert role-specific data into respective tables
+        if user_role == 'Student':
+            cur.execute("""
+                INSERT INTO students (UserID, Grade, School)
+                VALUES (%s, %s, %s)
+            """, (user_id, grade, student_school))
+        elif user_role == 'Teacher':
+            cur.execute("""
+                INSERT INTO teachers (UserID, School, Expertise)
+                VALUES (%s, %s, %s)
+            """, (user_id, teacher_school, teacher_expertise))
+        elif user_role == 'Parent':
+            cur.execute("""
+                INSERT INTO parents (UserID, ChildEmail)
+                VALUES (%s, %s)
+            """, (user_id, child_email))
+
+        # Commit transaction
+        conn.commit()
+
+        # Send confirmation email to the user
         send_email(
             template_id='d-f41f6a5e55064abba59ebe9081d1c0a0',  # Registration Confirmation Template
             to_email=user_email,
             dynamic_data={'user_name': first_name}
         )
 
-        is_approved = True if user_role == 'Student' else False
-        approval_status = "Approved" if is_approved else "Pending Approval"
-
+        # Send admin approval email if required
         if not is_approved:
             send_email(
                 template_id='d-d311b1449ac044e8a41c2840db00ce45',  # Admin Approval Request Template
@@ -73,18 +109,10 @@ def request_admin_approval():
                 dynamic_data={'user_name': first_name, 'user_role': user_role}
             )
 
-        cur.execute("""
-            INSERT INTO users (auth0_user_id, first_name, last_name, user_role, is_approved, user_created_time)
-            VALUES (%s, %s, %s, %s, %s, NOW()) RETURNING UserID
-        """, (auth0_user_id, first_name, last_name, user_role, is_approved))
-        user_id = cur.fetchone()[0]
-
-        if user_role == 'Student':
-            cur.execute("INSERT INTO students (UserID, Grade) VALUES (%s, %s)", (user_id, grade))
-
-        conn.commit()
         return jsonify({'approval': approval_status}), 200
-    except psycopg2.IntegrityError:
+
+    except psycopg2.IntegrityError as e:
+        logging.error(f"Integrity error: {str(e)}")
         return jsonify({'error': 'Database integrity error'}), 400
     except Exception as e:
         logging.error(f"Error in requestAdminApproval: {str(e)}")
@@ -186,26 +214,48 @@ def validate_user():
         cur.close()
         conn.close()
 
-# API to list all pending approvals for admin
 @auth_bp.route('/auth/listApprovals', methods=['GET'])
 def list_approvals():
     conn = get_db_connection()
     cur = conn.cursor()
 
     try:
+        # Query to retrieve all pending approvals with role-specific data
         cur.execute("""
-            SELECT auth0_user_id, user_role, user_created_time
-            FROM users
-            WHERE is_approved = FALSE
+            SELECT 
+                u.auth0_user_id, 
+                u.first_name, 
+                u.last_name, 
+                u.user_role, 
+                u.user_created_time,
+                s.grade, 
+                s.school AS student_school,
+                t.school AS teacher_school, 
+                t.expertise AS teacher_expertise,
+                p.childemail
+            FROM users u
+            LEFT JOIN students s ON u.UserID = s.UserID
+            LEFT JOIN teachers t ON u.UserID = t.UserID
+            LEFT JOIN parents p ON u.UserID = p.UserID
+            WHERE u.is_approved = FALSE
         """)
         pending_approvals = cur.fetchall()
         
-        # Convert datetime to ISO 8601 for better serialization
-        response = [{
-            'auth0_user_id': row[0],
-            'user_role': row[1],
-            'user_created_time': row[2].isoformat()
-        } for row in pending_approvals]
+        # Convert the result into a structured response
+        response = []
+        for row in pending_approvals:
+            response.append({
+                'auth0_user_id': row[0],
+                'first_name': row[1],
+                'last_name': row[2],
+                'user_role': row[3],
+                'user_created_time': row[4].isoformat(),
+                'grade': row[5],
+                'student_school': row[6],
+                'teacher_school': row[7],
+                'teacher_expertise': row[8],
+                'child_email': row[9]
+            })
 
         return jsonify(response), 200
     except Exception as e:
