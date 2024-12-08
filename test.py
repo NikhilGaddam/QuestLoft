@@ -1,4 +1,4 @@
-from helpers import add_flagged_message, get_flagged_messages
+from helpers import add_flagged_message, get_flagged_messages, get_all_user_history
 
 add_flagged_message("user@example.com", "Inappropriate content detected.")
 add_flagged_message("user2@example.com", "Suspicious activity flagged.")

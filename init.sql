@@ -73,6 +73,11 @@ CREATE TABLE IF NOT EXISTS QuizSessions (
     FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS chathistories (
+    ChatID SERIAL PRIMARY KEY,
+    Username VARCHAR(255) NOT NULL,
+    ChatHistory TEXT
+);
 
 INSERT INTO Users (
   UserID, 

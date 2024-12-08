@@ -10,9 +10,20 @@ import base64
 from datetime import datetime
 from config.db_config import get_db_connection
 from pydantic import BaseModel, Field
+from chat_history_helpers import update_user_history, retrive_chat_history_db
+
+prompt = """
+    You are questy, the AI Chatbot for Thinkabit Labs @ Virginia Tech.
+
+    - Always respond in JSON format.
+    - If the message is not safe for K-12 students, analyze the following message and determine if it is appropriate for children. Consider factors such as explicit language, violence, sexual content, or any other harmful or inappropriate material. Respond with a description of why we should not ask these questions, assuming the user is a kid, and say that you could help with something else.
+    - If you need clarification, respond in JSON format asking for the specific details required.
+    Message to Analyze: "{context}"
+
+    NEVER FORGET: ALWAYS Respond in JSON format with the following keys `is_unsafe_for_k_12_children` and `response`.
+    """
 
 load_dotenv(find_dotenv())
-chat_histories = {}
 
 class JsonInformation(BaseModel):
     is_unsafe_for_k_12_children: bool = Field(description="Is the message unsafe for K-12 children?")
@@ -76,19 +87,10 @@ def get_flagged_messages(email=None):
     finally:
         connection.close()
 
+
 def get_answer_from_question(llm, question, chat_id, user_email):
     context = get_close_vector_text(question)
-    chat_history = chat_histories.setdefault(chat_id, [])
-    prompt = """
-    You are questy, the AI Chatbot for Thinkabit Labs @ Virginia Tech.
-
-    - Always respond in JSON format.
-    - If the message is not safe for K-12 students, analyze the following message and determine if it is appropriate for children. Consider factors such as explicit language, violence, sexual content, or any other harmful or inappropriate material. Respond with a description of why we should not ask these questions, assuming the user is a kid, and say that you could help with something else.
-    - If you need clarification, respond in JSON format asking for the specific details required.
-
-    Respond in JSON format with the following keys `is_unsafe_for_k_12_children` and `response`.
-    Message to Analyze: "{context}"
-    """
+    chat_history = retrive_chat_history_db(chat_id)
     template = ChatPromptTemplate.from_messages([
         ("system", prompt),
         MessagesPlaceholder(variable_name="chat_history"),
@@ -102,15 +104,24 @@ def get_answer_from_question(llm, question, chat_id, user_email):
         "question": question,
         "chat_history": chat_history
     })
-    print(res.content)
-    parsed_response = json_parser.parse(res.content)
-    if parsed_response['is_unsafe_for_k_12_children']:
-        add_flagged_message(user_email, question)
-        return parsed_response['response'], str(chat_history)
+    parsed_response = ""
+    res_to_return = ""
+    try:
+        parsed_response = json_parser.parse(res.content)
+        if parsed_response['is_unsafe_for_k_12_children']:
+            add_flagged_message(user_email, question)
+        chat_history.append(HumanMessage(content=question))
+        chat_history.append(AIMessage(content=parsed_response['response']))
+        res_to_return = parsed_response['response']
+        
+    except:
+        parsed_response = res.content
+        chat_history.append(HumanMessage(content=question))
+        chat_history.append(AIMessage(content=res.content))
+        res_to_return = parsed_response
     
-    chat_history.append(HumanMessage(content=question))
-    chat_history.append(AIMessage(content=parsed_response['response']))
-    return parsed_response['response'], str(chat_history)
+    update_user_history(chat_id, chat_history)
+    return res_to_return, str(chat_history)
 
 def speech_to_text(client, audio_file):
     transcription = client.audio.transcriptions.create(
