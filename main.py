@@ -19,12 +19,20 @@ from helpers import speech_to_text, get_answer_from_question, text_to_speech
 from chat_history_helpers import get_chatid_from_database, get_all_user_history, get_history_of_chat_id
 
 
-logging.basicConfig(level=logging.DEBUG)
 
 load_dotenv(override=True)
 
+logging.basicConfig(level=logging.DEBUG)  # Root logger level
+gunicorn_logger = logging.getLogger("gunicorn.error")  # Gunicorn logger
 app = Flask(__name__)
 CORS(app)
+
+# Use Gunicorn logger configuration in your Flask app
+app.logger.handlers = gunicorn_logger.handlers
+app.logger.setLevel(logging.DEBUG)
+
+logging.debug("Starting the server Debug")
+app.logger.debug("Starting the server using Flask app logger Debug")
 app.register_blueprint(quiz_analysis_bp)
 app.register_blueprint(cms, url_prefix='/api')
 
@@ -81,15 +89,15 @@ def get_flagged_messages_api():
         cursor = connection.cursor()
         if search_term:
             query = sql.SQL("""
-                SELECT email, message, timestamp
+                SELECT auth0_user_id, message, timestamp
                 FROM flags
-                WHERE email ILIKE %s OR message ILIKE %s OR CAST(timestamp AS TEXT) ILIKE %s
+                WHERE auth0_user_id ILIKE %s OR message ILIKE %s OR CAST(timestamp AS TEXT) ILIKE %s
                 ORDER BY timestamp DESC;
             """)
             cursor.execute(query, (f"%{search_term}%", f"%{search_term}%", f"%{search_term}%"))
         else:
             cursor.execute("""
-                SELECT email, message, timestamp
+                SELECT auth0_user_id, message, timestamp
                 FROM flags
                 ORDER BY timestamp DESC;
             """)

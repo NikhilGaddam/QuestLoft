@@ -1,80 +1,70 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import psycopg2
-from psycopg2 import sql
 from config.db_config import get_db_connection
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
 from dotenv import load_dotenv, find_dotenv
 import logging
-import os
 from emails.send_email_config import send_email
 
-# Load environment variables
 load_dotenv(find_dotenv())
 
-# Create a blueprint for authentication routes
 auth_bp = Blueprint('auth', __name__)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
-# Logger setup
-logging.basicConfig(level=logging.ERROR)
-
-# Function to validate the format of auth0_user_id
 def is_valid_auth0_id(auth0_user_id):
     return True
 
-
 admins_email = "nikhil.gaddam@gmail.com"
 
-# API to request admin approval
 @auth_bp.route('/auth/requestAdminApproval', methods=['POST'])
 def request_admin_approval():
     data = request.json
+    current_app.logger.debug(f"Request data: {data}")
     auth0_user_id = data.get('auth0_user_id')
     user_email = data.get('user_email')
-    user_role = data.get('user_role')
-    first_name = data.get('first_name')
-    last_name = data.get('last_name')
+    user_metadata = data.get('user_metadata', {})
+    first_name = user_metadata.get('first_name')
+    last_name = user_metadata.get('last_name')
+    user_role = user_metadata.get('role')
+    grade = user_metadata.get('grade') if user_role == 'Student' else None
+    student_school = user_metadata.get('student_school') if user_role == 'Student' else None
+    teacher_school = user_metadata.get('teacher_school') if user_role == 'Teacher' else None
+    teacher_expertise = user_metadata.get('teacher_expertise') if user_role == 'Teacher' else None
+    child_email = user_metadata.get('child_email') if user_role == 'Parent' else None
 
-    # Role-specific fields
-    grade = data.get('grade') if user_role == 'Student' else None
-    student_school = data.get('student_school') if user_role == 'Student' else None
-    teacher_school = data.get('teacher_school') if user_role == 'Teacher' else None
-    teacher_expertise = data.get('teacher_expertise') if user_role == 'Teacher' else None
-    child_email = data.get('child_email') if user_role == 'Parent' else None
-
-    # Validate required fields
     required_fields = [auth0_user_id, user_email, user_role, first_name, last_name]
     if not all(required_fields):
+        current_app.logger.error("Missing required fields.")
         return jsonify({'error': 'Missing required fields'}), 400
 
     if user_role not in ['Teacher', 'Parent', 'Student']:
+        current_app.logger.error(f"Invalid user role: {user_role}")
         return jsonify({'error': 'Invalid user role'}), 400
 
     if not is_valid_auth0_id(auth0_user_id):
+        current_app.logger.error(f"Invalid auth0_user_id format: {auth0_user_id}")
         return jsonify({'error': 'Invalid auth0_user_id format'}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
 
     try:
-        # Check if the user already exists
         cur.execute("SELECT auth0_user_id FROM users WHERE auth0_user_id = %s", (auth0_user_id,))
         if cur.fetchone():
+            current_app.logger.info(f"User already exists: {auth0_user_id}")
             return jsonify({'error': 'User Already Exists'}), 409
 
-        # Auto-approve students, other roles require admin approval
         is_approved = user_role == 'Student'
         approval_status = "Approved" if is_approved else "Pending Approval"
 
-        # Insert user data into the `users` table
         cur.execute("""
             INSERT INTO users (
                 auth0_user_id, first_name, last_name, user_role, is_approved, user_created_time
             ) VALUES (%s, %s, %s, %s, %s, NOW()) RETURNING UserID
         """, (auth0_user_id, first_name, last_name, user_role, is_approved))
         user_id = cur.fetchone()[0]
+        current_app.logger.debug(f"User added with ID: {user_id}")
 
-        # Insert role-specific data into respective tables
         if user_role == 'Student':
             cur.execute("""
                 INSERT INTO students (UserID, Grade, School)
@@ -91,20 +81,18 @@ def request_admin_approval():
                 VALUES (%s, %s)
             """, (user_id, child_email))
 
-        # Commit transaction
         conn.commit()
+        current_app.logger.info(f"User data committed for UserID: {user_id}")
 
-        # Send confirmation email to the user
         send_email(
-            template_id='d-f41f6a5e55064abba59ebe9081d1c0a0',  # Registration Confirmation Template
+            template_id='d-f41f6a5e55064abba59ebe9081d1c0a0',
             to_email=user_email,
             dynamic_data={'user_name': first_name}
         )
 
-        # Send admin approval email if required
         if not is_approved:
             send_email(
-                template_id='d-d311b1449ac044e8a41c2840db00ce45',  # Admin Approval Request Template
+                template_id='d-d311b1449ac044e8a41c2840db00ce45',
                 to_email=admins_email,
                 dynamic_data={'user_name': first_name, 'user_role': user_role}
             )
@@ -112,16 +100,15 @@ def request_admin_approval():
         return jsonify({'approval': approval_status}), 200
 
     except psycopg2.IntegrityError as e:
-        logging.error(f"Integrity error: {str(e)}")
+        current_app.logger.error(f"Integrity error: {e}")
         return jsonify({'error': 'Database integrity error'}), 400
     except Exception as e:
-        logging.error(f"Error in requestAdminApproval: {str(e)}")
+        current_app.logger.error(f"Error in requestAdminApproval: {e}")
         return jsonify({'error': 'Internal server error'}), 500
     finally:
         cur.close()
         conn.close()
 
-# API for admin to approve or reject a user
 @auth_bp.route('/auth/updateApproval', methods=['POST'])
 def update_approval():
     data = request.json
@@ -130,8 +117,8 @@ def update_approval():
     user_email = data.get('user_email')
     student_id = data.get('student_id') if data.get('user_role') == 'Parent' else None
 
-    # Validate input
     if not all([auth0_user_id, is_approved, user_email]):
+        current_app.logger.error("Invalid data types.")
         return jsonify({'error': 'Invalid data types'}), 400
 
     conn = get_db_connection()
@@ -145,45 +132,38 @@ def update_approval():
         """, (is_approved, auth0_user_id))
 
         if cur.rowcount == 0:
+            current_app.logger.info(f"User not found or state unchanged: {auth0_user_id}")
             return jsonify({'error': 'User not found or approval state unchanged'}), 404
 
+        if is_approved and data.get('user_role') == 'Parent' and student_id:
+            cur.execute("""
+                INSERT INTO parents (UserID, StudentUserID)
+                SELECT UserID, %s FROM users WHERE auth0_user_id = %s
+            """, (student_id, auth0_user_id))
+
+        send_email(
+            template_id='d-6f7cc0a01dc84945b6b77fbd8171a2ec' if is_approved else 'd-7106815014014a7aa627d6fef2dbab0d',
+            to_email=user_email,
+            dynamic_data={'user_name': auth0_user_id}
+        )
+
         conn.commit()
-
-        if is_approved:
-            # If the user is a Parent, link to StudentID in the Parents table
-            if data.get('user_role') == 'Parent' and student_id:
-                cur.execute("""
-                    INSERT INTO parents (UserID, StudentUserID)
-                    SELECT UserID, %s FROM users WHERE auth0_user_id = %s
-                """, (student_id, auth0_user_id))
-
-            send_email(
-                template_id='d-6f7cc0a01dc84945b6b77fbd8171a2ec',  # Account Approved Template
-                to_email=user_email,
-                dynamic_data={'user_name': auth0_user_id}
-            )
-        else:
-            send_email(
-                template_id='d-7106815014014a7aa627d6fef2dbab0d',  # Account Rejected Template
-                to_email=user_email,
-                dynamic_data={'user_name': auth0_user_id}
-            )
-
+        current_app.logger.info(f"Approval updated successfully for: {auth0_user_id}")
         return jsonify({'message': 'Approval updated successfully'}), 200
+
     except Exception as e:
-        logging.error(f"Error in updateApproval: {str(e)}")
+        current_app.logger.error(f"Error in updateApproval: {e}")
         return jsonify({'error': 'Internal server error'}), 500
     finally:
         cur.close()
         conn.close()
 
-# API to validate if a user is approved
 @auth_bp.route('/auth/validateUser', methods=['GET'])
 def validate_user():
     auth0_user_id = request.args.get('auth0_user_id')
 
-    # Validate input
     if not auth0_user_id or not isinstance(auth0_user_id, str):
+        current_app.logger.error("Invalid data.")
         return jsonify({'error': 'Invalid data'}), 400
 
     conn = get_db_connection()
@@ -198,17 +178,16 @@ def validate_user():
         result = cur.fetchone()
 
         if result is None:
+            current_app.logger.info(f"User not found: {auth0_user_id}")
             return jsonify({'error': 'User not found'}), 404
 
         is_approved, user_role = result
-
-        # Auto-approve students
         if user_role == 'Student':
             return jsonify({'is_approved': True}), 200
 
         return jsonify({'is_approved': is_approved}), 200
     except Exception as e:
-        logging.error(f"Error in validateUser: {str(e)}")
+        current_app.logger.error(f"Error in validateUser: {e}")
         return jsonify({'error': 'Internal server error'}), 500
     finally:
         cur.close()
@@ -220,7 +199,6 @@ def list_approvals():
     cur = conn.cursor()
 
     try:
-        # Query to retrieve all pending approvals with role-specific data
         cur.execute("""
             SELECT 
                 u.auth0_user_id, 
@@ -240,8 +218,7 @@ def list_approvals():
             WHERE u.is_approved = FALSE
         """)
         pending_approvals = cur.fetchall()
-        
-        # Convert the result into a structured response
+
         response = []
         for row in pending_approvals:
             response.append({
@@ -259,7 +236,7 @@ def list_approvals():
 
         return jsonify(response), 200
     except Exception as e:
-        logging.error(f"Error in listApprovals: {str(e)}")
+        current_app.logger.error(f"Error in listApprovals: {e}")
         return jsonify({'error': 'Internal server error'}), 500
     finally:
         cur.close()
