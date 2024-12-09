@@ -1,7 +1,5 @@
 from helpers import get_answer_from_question, get_close_vector_text
 from langchain_openai import ChatOpenAI
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import FAISS
 import os
 from dotenv import load_dotenv, find_dotenv
 
