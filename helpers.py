@@ -10,6 +10,7 @@ import base64
 from datetime import datetime
 from config.db_config import get_db_connection
 from pydantic import BaseModel, Field
+from flask import current_app
 
 load_dotenv(find_dotenv())
 chat_histories = {}
@@ -19,64 +20,33 @@ class JsonInformation(BaseModel):
     response: str = Field(description="Response to the message")
 json_parser = JsonOutputParser(pydantic_object=JsonInformation)
 
-
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
 vector_store = FAISS.load_local(
     "faiss_index", embeddings, allow_dangerous_deserialization=True
 )
 
-def add_flagged_message(email, message):
+def add_flagged_message(auth0_user_id, message):
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     connection = get_db_connection()
     try:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                INSERT INTO flags (email, message, timestamp)
+                INSERT INTO flags (auth0_user_id, message, timestamp)
                 VALUES (%s, %s, %s);
                 """,
-                (email, message, current_time)
+                (auth0_user_id, message, current_time)
             )
         connection.commit()
+        current_app.logger.debug(f"Flagged message added for auth0_user_id: {auth0_user_id}")
     except Exception as e:
-        print(f"Error adding flagged message: {e}")
+        current_app.logger.debug(f"Error adding flagged message: {e}")
         connection.rollback()
     finally:
         connection.close()
 
-def get_flagged_messages(email=None):
-    connection = get_db_connection()
-    try:
-        with connection.cursor() as cursor:
-            # Retrieve flagged messages for a specific email or all emails
-            if email:
-                cursor.execute(
-                    """
-                    SELECT email, message, timestamp
-                    FROM flags
-                    WHERE email = %s
-                    ORDER BY timestamp DESC;
-                    """,
-                    (email,)
-                )
-            else:
-                cursor.execute(
-                    """
-                    SELECT email, message, timestamp
-                    FROM flags
-                    ORDER BY timestamp DESC;
-                    """
-                )
-            flagged_messages = cursor.fetchall()
-        return flagged_messages
-    except Exception as e:
-        print(f"Error retrieving flagged messages: {e}")
-        return []
-    finally:
-        connection.close()
-
-def get_answer_from_question(llm, question, chat_id, user_email):
+def get_answer_from_question(llm, question, chat_id, auth0_user_id):
     context = get_close_vector_text(question)
     chat_history = chat_histories.setdefault(chat_id, [])
     prompt = """
@@ -97,47 +67,61 @@ def get_answer_from_question(llm, question, chat_id, user_email):
 
     chain = template | llm
 
-    res = chain.invoke({
-        "context": context,
-        "question": question,
-        "chat_history": chat_history
-    })
-    print(res.content)
-    parsed_response = json_parser.parse(res.content)
-    if parsed_response['is_unsafe_for_k_12_children']:
-        add_flagged_message(user_email, question)
+    try:
+        res = chain.invoke({
+            "context": context,
+            "question": question,
+            "chat_history": chat_history
+        })
+        parsed_response = json_parser.parse(res.content)
+        current_app.logger.debug(f"Parsed response: {parsed_response}")
+        if parsed_response['is_unsafe_for_k_12_children']:
+            add_flagged_message(auth0_user_id, question)
+            return parsed_response['response'], str(chat_history)
+
+        chat_history.append(HumanMessage(content=question))
+        chat_history.append(AIMessage(content=parsed_response['response']))
         return parsed_response['response'], str(chat_history)
-    
-    chat_history.append(HumanMessage(content=question))
-    chat_history.append(AIMessage(content=parsed_response['response']))
-    return parsed_response['response'], str(chat_history)
+    except Exception as e:
+        current_app.logger.debug(f"Error in get_answer_from_question: {e}")
+        return "Error processing the question.", str(chat_history)
 
 def speech_to_text(client, audio_file):
-    transcription = client.audio.transcriptions.create(
-        model="whisper-1",
-        file=audio_file
-    )
-    return transcription.text
+    try:
+        transcription = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file
+        )
+        current_app.logger.debug("Transcription completed successfully.")
+        return transcription.text
+    except Exception as e:
+        current_app.logger.debug(f"Error during speech-to-text: {e}")
+        return "Error during speech-to-text."
 
 def text_to_speech(speech_synthesizer, file_name, text):
-    result = speech_synthesizer.speak_text_async(text).get()
-    result_audio_data = result.audio_data
-    wav_base64 = base64.b64encode(result_audio_data).decode('utf-8')
+    try:
+        result = speech_synthesizer.speak_text_async(text).get()
+        result_audio_data = result.audio_data
+        wav_base64 = base64.b64encode(result_audio_data).decode('utf-8')
 
-    if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-        print("Speech synthesized for text [{}], and the audio was saved to [{}]".format(text, file_name))
-    elif result.reason == speechsdk.ResultReason.Canceled:
-        cancellation_details = result.cancellation_details
-        print("Speech synthesis canceled: {}".format(cancellation_details.reason))
-        if cancellation_details.reason == speechsdk.CancellationReason.Error:
-            print("Error details: {}".format(cancellation_details.error_details))
-    return wav_base64
+        if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+            current_app.logger.debug(f"Speech synthesized for text: {text}")
+        elif result.reason == speechsdk.ResultReason.Canceled:
+            cancellation_details = result.cancellation_details
+            current_app.logger.debug(f"Speech synthesis canceled: {cancellation_details.reason}")
+            if cancellation_details.reason == speechsdk.CancellationReason.Error:
+                current_app.logger.debug(f"Error details: {cancellation_details.error_details}")
+        return wav_base64
+    except Exception as e:
+        current_app.logger.debug(f"Error during text-to-speech: {e}")
+        return None
 
 def get_close_vector_text(question):
-    
-    results = vector_store.similarity_search_with_score(
-        question, k=1
-    )
-
-    if results[0][1] < 1.5:
-        return results[0][0].page_content
+    try:
+        results = vector_store.similarity_search_with_score(question, k=1)
+        current_app.logger.debug(f"Vector similarity results: {results}")
+        if results[0][1] < 1.5:
+            return results[0][0].page_content
+    except Exception as e:
+        current_app.logger.debug(f"Error retrieving close vector text: {e}")
+        return ""
