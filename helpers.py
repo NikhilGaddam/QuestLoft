@@ -3,7 +3,6 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import MessagesPlaceholder
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import FAISS
 from dotenv import load_dotenv, find_dotenv
 import azure.cognitiveservices.speech as speechsdk
 import base64
@@ -11,6 +10,7 @@ from datetime import datetime
 from config.db_config import get_db_connection
 from pydantic import BaseModel, Field
 from chat_history_helpers import update_user_history, retrive_chat_history_db
+from langchain_community.vectorstores import Chroma
 
 prompt = """
     You are questy, the AI Chatbot for Thinkabit Labs @ Virginia Tech.
@@ -32,10 +32,7 @@ json_parser = JsonOutputParser(pydantic_object=JsonInformation)
 
 
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-
-vector_store = FAISS.load_local(
-    "faiss_index", embeddings, allow_dangerous_deserialization=True
-)
+vector_store = Chroma(persist_directory="vector-store-chroma", embedding_function=embeddings)
 
 def add_flagged_message(email, message):
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -145,10 +142,10 @@ def text_to_speech(speech_synthesizer, file_name, text):
     return wav_base64
 
 def get_close_vector_text(question):
-    
-    results = vector_store.similarity_search_with_score(
-        question, k=1
-    )
-
-    if results[0][1] < 1.5:
-        return results[0][0].page_content
+    results = vector_store.similarity_search_with_score(question, k=1)
+    first_res = results[0]
+    content = first_res[0].page_content
+    source = first_res[0].metadata["source"]
+    source = source[5:]
+    if first_res[1] < 1.5:
+        return content, source
