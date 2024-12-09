@@ -110,7 +110,6 @@ def get_flagged_messages_api():
 def get_chat_history_for_user():
     user_email = request.args.get('userEmail')
     chat_histories = get_all_user_history(user_email)
-    print(chat_histories)
     result = chat_histories
     return jsonify(result), 200
 
@@ -228,7 +227,7 @@ def chat_voice_to_voice():
     except Exception as e:
         print(e)
         return jsonify({'error': str(e)}), 500
-    response = {"reply": answer, "voiceToText": converted_text, "wav_base64": wav_base64, "chat_history": chat_history}
+    response = {"reply": answer, "voiceToText": converted_text, "wav_base64": wav_base64}
     
     if not chat_id_exists:
         response["chat_id"] = chat_id

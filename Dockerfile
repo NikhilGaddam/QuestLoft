@@ -29,4 +29,4 @@ ENV FLASK_ENV=production
 
 # The --reload flag can probably be removed for windows
 # Command to run the app with Gunicorn
-CMD ["sh", "-c", "python faiss-store.py && gunicorn -b 0.0.0.0:${PORT} --reload --workers=3 --timeout=120 main:app"]
+CMD ["sh", "-c", "python create_pdf_vector_store/split-pdf.py && gunicorn -b 0.0.0.0:${PORT} --reload --workers=3 --timeout=120 main:app"]
