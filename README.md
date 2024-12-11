@@ -6,8 +6,10 @@ Questloft is a comprehensive learning platform that combines interactive tools, 
 
 Before you begin, ensure you have met the following requirements:
 
-- **Python 3.x**: Ensure Python 3.x is installed on your machine.
-- **pip**: Make sure pip (Python package manager) is also installed.
+- **Docker**: Download and install Docker Desktop for your operating system:
+  - [Docker for Windows](https://www.docker.com/products/docker-desktop/)
+  - [Docker for macOS](https://www.docker.com/products/docker-desktop/)
+- **Git**: Ensure Git is installed on your machine.
 
 ## Installation
 
@@ -18,66 +20,55 @@ Follow these steps to set up the Questloft backend on your local machine.
 First, clone the repository from GitLab:
 
 ```bash
-git clone git@gitlab.com:wallfacers1/questloft.git
+git clone https://git.cs.vt.edu/wallfacers/questloft-backend.git
 cd questloft/backend
 ```
 
-### Create a Virtual Environment
-It is recommended to use a virtual environment to manage dependencies. Run the following command to create one:
-bash
-```bash
-python -m venv venv
-```
-### Activate the Virtual Environment
-Activate the virtual environment using the command appropriate for your operating system.
+### Configure Environment Variables
 
-On Windows:
-```bash
-venv\Scripts\activate
-```
+Before running the application, make sure you have the environment variables defined in a `.env` file:
 
-On macOS/Linux:
-```bash
-source venv/bin/activate
-```
-
-### Install Required Packages
-Install the necessary packages using pip:
-```bash
-pip install -r requirements.txt
-```
-
-
-### Run the application
-Before running the application, make sure you have the environment variables defined in .env file
 ```
 OPENAI_API_KEY=""
-
 OPENAI_MODEL_NAME=""
-
 SPEECH_KEY=""
-
 SERVICE_REGION=""
-
 PORT=""
-
-DB_HOST = ""
-DB_PORT = ""
-DB_NAME = ""
-DB_USER = "" 
-DB_PASSWORD = "" 
-
+DB_HOST=""
+DB_PORT=""
+DB_NAME=""
+DB_USER=""
+DB_PASSWORD=""
 ```
 
+### Start the Application
 
-To run the application, execute the following command:
+Run the following command to build and start the application:
 
 ```bash
-python main.py
+docker-compose up --build
 ```
 
+This command will build the Docker containers, start the PostgreSQL database, and launch the backend server. Once running, you can access the application by navigating to [http://127.0.0.1:5000](http://127.0.0.1:5000) in your web browser.
 
-After starting the server, you can access the application by navigating to http://127.0.0.1:5000 in your web browser.
+### Database Initialization
+
+The PostgreSQL database is automatically initialized with the necessary schema during the first run of the Docker containers. If you want to reinitialize the database (e.g., in a development environment), follow these steps:
+
+1. Stop the Docker containers:
+   ```bash
+   docker-compose down
+   ```
+
+2. Remove the PostgreSQL volume to force reinitialization (optional):
+   ```bash
+   docker volume rm questloft-backend_postgres_data
+   ```
+
+3. Restart the Docker containers:
+   ```bash
+   docker-compose up --build
+   ```
 
 
 ### Contributing
@@ -85,34 +76,16 @@ After starting the server, you can access the application by navigating to http:
 To contribute to Questloft, please follow these guidelines:
 
 - Fork the repository.
-- Create a new branch: `git checkout -b feat/<feature-name>` or `fix/<fix-name>`.
-- Push to the branch.
+- Create a new branch:
+  ```bash
+  git checkout -b feat/<feature-name>
+  ```
+  or
+  ```bash
+  git checkout -b fix/<fix-name>
+  ```
+- Push your changes to the branch:
+  ```bash
+  git push origin <branch-name>
+  ```
 - Open a pull request.
-
-
-
--------
-PSQL schema
-CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  auth0_user_id VARCHAR(255),
-  user_role VARCHAR(50),
-  is_approved BOOLEAN DEFAULT FALSE
-);
-
-Delete the Volume and Reinitialize the Database
-If you're in a development environment and want Docker to rerun init.sql (which will reinitialize the database):
-
-Remove the PostgreSQL Volume: By deleting the Docker volume where the PostgreSQL data is stored, you will force Docker to rerun the initialization scripts:
-
-
-docker-compose down
-docker volume rm questloft-backend_postgres_data
-
-
-Start the Docker Containers: When you restart the containers, Docker will rerun the init.sql script and create the database and schema again.
-
-docker-compose up --build
-
-
-
