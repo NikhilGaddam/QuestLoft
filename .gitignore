@@ -164,4 +164,4 @@ cython_debug/
 #.idea/
 
 uploads/*
-faiss_index
+faiss_index.env
