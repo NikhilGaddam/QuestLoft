@@ -29,16 +29,26 @@ cd questloft/backend
 Before running the application, make sure you have the environment variables defined in a `.env` file:
 
 ```
-OPENAI_API_KEY=""
-OPENAI_MODEL_NAME=""
-SPEECH_KEY=""
-SERVICE_REGION=""
-PORT=""
-DB_HOST=""
-DB_PORT=""
-DB_NAME=""
-DB_USER=""
-DB_PASSWORD=""
+OPENAI_API_KEY="<your_openai_api_key>"
+OPENAI_MODEL_NAME="gpt-4o"
+PORT=8080
+DB_HOST = "<your_db_host>"
+DB_PORT = "<your_db_port>"
+DB_NAME = "<your_db_name>"
+DB_USER = "<your_db_user>"
+DB_PASSWORD = "<your_db_password>"
+SENDGRID_API_KEY="<your_sendgrid_api_key>"
+SPEECH_KEY="<your_speech_key>"
+SERVICE_REGION="<your_service_region>"
+REDISPORT="<your_redis_port>"
+REDIS_URL="<your_redis_url>"
+REDISHOST="<your_redis_host>"
+REDISUSER="<your_redis_user>"
+REDISPASS="<your_redis_password>"
+AWS_ACCESS_KEY_ID="<your_aws_access_key_id>"
+AWS_SECRET_ACCESS_KEY="<your_aws_secret_access_key>"
+AWS_REGION="<your_aws_region>"
+AWS_BUCKET_NAME="<your_aws_bucket_name>"
 ```
 
 ### Start the Application
